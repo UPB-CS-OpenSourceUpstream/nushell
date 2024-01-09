@@ -38,6 +38,9 @@ pub(crate) fn acquire_terminal(interactive: bool) {
             // TODO: determine if this is necessary or not, since this breaks `rm` on macOS
             // signal(Signal::SIGCHLD, SigHandler::SigIgn).expect("signal ignore");
 
+            #[cfg(not(target_os = "macos"))]
+            signal(Signal::SIGCHLD, SigHandler::SigIgn).expect("signal ignore");
+
             signal_hook::low_level::register(signal_hook::consts::SIGTERM, || {
                 // Safety: can only call async-signal-safe functions here
                 // restore_terminal, signal, and raise are all async-signal-safe
