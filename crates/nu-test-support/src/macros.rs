@@ -72,10 +72,10 @@ macro_rules! nu {
     // For all other options, we call `.into()` on the `$value` and hope for the best. ;)
     (
         @options [ $($options:tt)* ]
-        $field:ident : $value:expr,
+        custom_plugin_path: $value:expr,
         $($rest:tt)*
     ) => {
-        nu!(@options [ $($options)* $field => $value.into() ; ] $($rest)*)
+        nu!(@options [ $($options)* custom_plugin_path => $value.into() ; ] $($rest)*)
     };
 
     // When the `$field: $value,` pairs are all parsed, the next tokens are the `$path` and any
@@ -223,6 +223,7 @@ use tempfile::tempdir;
 pub struct NuOpts {
     pub cwd: Option<String>,
     pub locale: Option<String>,
+    pub custom_plugin_path: Option<String>, //for custom plugin path
 }
 
 pub fn nu_run_test(opts: NuOpts, commands: impl AsRef<str>, with_std: bool) -> Outcome {
@@ -282,7 +283,7 @@ pub fn nu_run_test(opts: NuOpts, commands: impl AsRef<str>, with_std: bool) -> O
     Outcome::new(out, err.into_owned(), output.status)
 }
 
-pub fn nu_with_plugin_run_test(cwd: impl AsRef<Path>, plugins: &[&str], command: &str) -> Outcome {
+pub fn nu_with_plugin_run_test(cwd: impl AsRef<Path>, opts: NuOpts,plugins: &[&str], command: &str) -> Outcome {
     let test_bins = crate::fs::binaries();
     let test_bins = nu_path::canonicalize_with(&test_bins, ".").unwrap_or_else(|e| {
         panic!(
@@ -297,6 +298,7 @@ pub fn nu_with_plugin_run_test(cwd: impl AsRef<Path>, plugins: &[&str], command:
     std::fs::File::create(&temp_plugin_file).expect("couldn't create temporary plugin file");
 
     crate::commands::ensure_plugins_built();
+    use crate::fs::executable_path;
 
     let registrations: String = plugins
         .iter()
@@ -309,6 +311,11 @@ pub fn nu_with_plugin_run_test(cwd: impl AsRef<Path>, plugins: &[&str], command:
             output
         });
     let commands = format!("{registrations}{command}");
+        //solving TODO 
+    let mut command = Command::new(executable_path());
+    if let Some(plugin_path) = opts.custom_plugin_path {
+        command.env("NU_PLUGIN_PATH", plugin_path);
+    }
 
     let target_cwd = crate::fs::in_directory(&cwd);
     // In plugin testing, we need to use installed nushell to drive
